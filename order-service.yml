@@ -14,11 +14,6 @@ spring:
     hibernate.ddl-auto: update
     show-sql: true
 
-  rabbitmq:
-    host: rabbitmq
-    port: 5672
-    username: guest
-    password: guest
 
 eureka:
   client.serviceUrl.defaultZone: http://service-registry:8761/eureka/
@@ -28,7 +23,3 @@ management:
   endpoints.web.exposure.include: "*"
   endpoint.health.show-details: always
   prometheus.enabled: true
-
-logging:
-  level.org.springframework.web: DEBUG
-  pattern.level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
