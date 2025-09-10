@@ -1,24 +1,109 @@
 server:
-  port: 8083
+  port: ${ORDER_SERVER_PORT:8083}
 
 spring:
-  application:
-    name: order-service
-
   datasource:
-    url: jdbc:mysql://localhost:3306/order_db
-    username: root
-    password: 123456
+    url: ${ORDER_DB_URL:jdbc:mysql://localhost:3306/order_db}
+    username: ${ORDER_DB_USERNAME:root}
+    password: ${ORDER_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
-    hibernate.ddl-auto: update
-    show-sql: true
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:true}
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: ${KAFKA_ADD_TYPE_HEADERS:false}
 
 eureka:
-  client.serviceUrl.defaultZone: http://localhost:8761/eureka/
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka}
 
-management:
-  tracing.sampling.probability: 1.0
-  endpoints.web.exposure.include: "*"
-  endpoint.health.show-details: always
+resilience4j:
+  circuitbreaker:
+    configs:
+      defaultCB:
+        slidingWindowType: ${CB_WINDOW_TYPE:COUNT_BASED}
+        slidingWindowSize: ${CB_WINDOW_SIZE:50}
+        minimumNumberOfCalls: ${CB_MIN_CALLS:20}
+        failureRateThreshold: ${CB_FAILURE_RATE:50}
+        slowCallDurationThreshold: ${CB_SLOW_DURATION:2s}
+        slowCallRateThreshold: ${CB_SLOW_RATE:60}
+        waitDurationInOpenState: ${CB_OPEN_WAIT:20s}
+        permittedNumberOfCallsInHalfOpenState: ${CB_HALF_OPEN_CALLS:5}
+        automaticTransitionFromOpenToHalfOpenEnabled: ${CB_AUTO_TRANSITION:true}
+    instances:
+      orderToAuth:
+        baseConfig: defaultCB
+        slowCallDurationThreshold: ${CB_AUTH_SLOW:800ms}
+        slowCallRateThreshold: ${CB_AUTH_SLOW_RATE:50}
+        waitDurationInOpenState: ${CB_AUTH_OPEN_WAIT:8s}
+        failureRateThreshold: ${CB_AUTH_FAIL_RATE:50}
+      orderToCart:
+        baseConfig: defaultCB
+        slowCallDurationThreshold: ${CB_CART_SLOW:2s}
+        slowCallRateThreshold: ${CB_CART_SLOW_RATE:60}
+        waitDurationInOpenState: ${CB_CART_OPEN_WAIT:15s}
+        failureRateThreshold: ${CB_CART_FAIL_RATE:50}
+      orderToPaypal:
+        baseConfig: defaultCB
+        slowCallDurationThreshold: ${CB_PAYPAL_SLOW:20s}
+        waitDurationInOpenState: ${CB_PAYPAL_OPEN_WAIT:30s}
+
+  retry:
+    configs:
+      defaultRetry:
+        maxAttempts: ${RETRY_MAX_ATTEMPTS:3}
+        waitDuration: ${RETRY_WAIT:200ms}
+        enableExponentialBackoff: ${RETRY_BACKOFF:true}
+        exponentialBackoffMultiplier: ${RETRY_BACKOFF_MULTIPLIER:2}
+        retryExceptions:
+          - java.io.IOException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - org.springframework.web.reactive.function.client.WebClientResponseException$ServiceUnavailable
+          - org.springframework.web.reactive.function.client.WebClientResponseException$GatewayTimeout
+        ignoreExceptions:
+          - org.springframework.web.reactive.function.client.WebClientResponseException$BadRequest
+          - org.springframework.web.reactive.function.client.WebClientResponseException$NotFound
+          - org.springframework.web.reactive.function.client.WebClientResponseException$Unauthorized
+          - org.springframework.web.reactive.function.client.WebClientResponseException$Forbidden
+    instances:
+      orderToAuth:
+        baseConfig: defaultRetry
+        maxAttempts: ${RETRY_AUTH_ATTEMPTS:2}
+        waitDuration: ${RETRY_AUTH_WAIT:150ms}
+      orderToCart:
+        baseConfig: defaultRetry
+        maxAttempts: ${RETRY_CART_ATTEMPTS:3}
+        waitDuration: ${RETRY_CART_WAIT:250ms}
+
+  timelimiter:
+    instances:
+      orderToAuth:
+        timeoutDuration: ${TL_AUTH:1s}
+      orderToCart:
+        timeoutDuration: ${TL_CART:2s}
+
+  bulkhead:
+    instances:
+      orderToAuth:
+        maxConcurrentCalls: ${BH_AUTH_MAX:100}
+        maxWaitDuration: ${BH_AUTH_WAIT:0}
+      orderToCart:
+        maxConcurrentCalls: ${BH_CART_MAX:50}
+        maxWaitDuration: ${BH_CART_WAIT:0}
+      orderToPaypal:
+        maxConcurrentCalls: ${BH_PAYPAL_MAX:30}
+        maxWaitDuration: ${BH_PAYPAL_WAIT:0}
+
+paypal:
+  base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+  client-id: ${PAYPAL_CLIENT_ID}
+  secret: ${PAYPAL_SECRET}

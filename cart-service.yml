@@ -1,14 +1,52 @@
 server:
-  port: 8084
+  port: ${CART_SERVER_PORT:8082}
 
 spring:
-  application:
-    name: cart-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 eureka:
-  client.serviceUrl.defaultZone: http://localhost:8761/eureka/
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka}
 
 management:
-  tracing.sampling.probability: 1.0
-  endpoints.web.exposure.include: "*"
-  endpoint.health.show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  tracing:
+    sampling:
+      probability: ${OTEL_SAMPLING:1.0}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+  level:
+    org.springframework.web: ${WEB_LOG_LEVEL:DEBUG}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      cartToProduct:
+        slidingWindowType: ${CB_WINDOW_TYPE:COUNT_BASED}
+        slidingWindowSize: ${CB_WINDOW_SIZE:20}
+        minimumNumberOfCalls: ${CB_MIN_CALLS:10}
+        failureRateThreshold: ${CB_FAILURE_RATE:50}
+        slowCallDurationThreshold: ${CB_SLOW_DURATION:2s}
+        slowCallRateThreshold: ${CB_SLOW_RATE:60}
+        waitDurationInOpenState: ${CB_OPEN_WAIT:20s}
+        permittedNumberOfCallsInHalfOpenState: ${CB_HALF_OPEN_CALLS:3}
+        automaticTransitionFromOpenToHalfOpenEnabled: ${CB_AUTO_TRANSITION:true}
+  retry:
+    instances:
+      cartToProduct:
+        maxAttempts: ${RETRY_MAX_ATTEMPTS:3}
+        waitDuration: ${RETRY_WAIT:300ms}
+# Nếu muốn dùng TimeLimiter, bật phần dưới và điều chỉnh bằng ENV:
+#  timelimiter:
+#    instances:
+#      cartToProduct:
+#        timeoutDuration: ${TL_TIMEOUT:3s}

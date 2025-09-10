@@ -1,40 +1,27 @@
 server:
-  port: 8082
+  port: ${AUTH_SERVER_PORT:9000}
 
 spring:
-  application:
-    name: auth-service
-
   datasource:
-    url: jdbc:mysql://localhost:3306/auth_db
-    username: root
-    password: 123456
+    url: ${AUTH_DB_URL:jdbc:mysql://localhost:3306/auth_db}
+    username: ${AUTH_DB_USERNAME:root}
+    password: ${AUTH_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
-
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: ${JPA_SHOW_SQL:true}
 
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: ${AUTH_ISSUER:http://localhost:9000}
 
-  cloud:
-    config:
-      import-check:
-        enabled: false
+logging:
+  level:
+    com.badmintonhub.authservice.config: ${AUTH_LOG_LEVEL:INFO}
 
 eureka:
   client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
-
-management:
-  tracing:
-    sampling:
-      probability: 1.0
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-  endpoint:
-    health:
-      show-details: always
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka}
