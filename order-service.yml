@@ -1,109 +1,118 @@
 server:
-  port: ${ORDER_SERVER_PORT:8083}
+  port: 8083
 
 spring:
+  application:
+    name: ORDER-SERVICE
+
   datasource:
-    url: ${ORDER_DB_URL:jdbc:mysql://localhost:3306/order_db}
-    username: ${ORDER_DB_USERNAME:root}
+    url: jdbc:mysql://localhost:3306/order_db
+    username: root
     password: ${ORDER_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+
   jpa:
-    hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL:true}
+    hibernate.ddl-auto: update
+    show-sql: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.add.type.headers: ${KAFKA_ADD_TYPE_HEADERS:false}
-
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka}
+        spring.json.add.type.headers: false
 
 resilience4j:
   circuitbreaker:
     configs:
       defaultCB:
-        slidingWindowType: ${CB_WINDOW_TYPE:COUNT_BASED}
-        slidingWindowSize: ${CB_WINDOW_SIZE:50}
-        minimumNumberOfCalls: ${CB_MIN_CALLS:20}
-        failureRateThreshold: ${CB_FAILURE_RATE:50}
-        slowCallDurationThreshold: ${CB_SLOW_DURATION:2s}
-        slowCallRateThreshold: ${CB_SLOW_RATE:60}
-        waitDurationInOpenState: ${CB_OPEN_WAIT:20s}
-        permittedNumberOfCallsInHalfOpenState: ${CB_HALF_OPEN_CALLS:5}
-        automaticTransitionFromOpenToHalfOpenEnabled: ${CB_AUTO_TRANSITION:true}
+        slidingWindowType: COUNT_BASED         # Thống kê theo số lần gọi
+        slidingWindowSize: 50                  # 50 request gần nhất
+        minimumNumberOfCalls: 20               # Bắt đầu tính toán sau ≥20 request
+        failureRateThreshold: 50               # ≥50% lỗi -> OPEN
+        slowCallDurationThreshold: 2s          # >2s coi là chậm
+        slowCallRateThreshold: 60              # ≥60% chậm -> OPEN
+        waitDurationInOpenState: 20s           # OPEN -> chờ 20s -> HALF_OPEN
+        permittedNumberOfCallsInHalfOpenState: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
     instances:
+      # Địa chỉ (Auth/User) - bắt buộc, nhạy hơn
       orderToAuth:
         baseConfig: defaultCB
-        slowCallDurationThreshold: ${CB_AUTH_SLOW:800ms}
-        slowCallRateThreshold: ${CB_AUTH_SLOW_RATE:50}
-        waitDurationInOpenState: ${CB_AUTH_OPEN_WAIT:8s}
-        failureRateThreshold: ${CB_AUTH_FAIL_RATE:50}
+        slowCallDurationThreshold: 800ms
+        slowCallRateThreshold: 50
+        waitDurationInOpenState: 8s
+        failureRateThreshold: 50
+      # Cart - có thể nặng hơn nên ngưỡng chậm cao hơn
       orderToCart:
         baseConfig: defaultCB
-        slowCallDurationThreshold: ${CB_CART_SLOW:2s}
-        slowCallRateThreshold: ${CB_CART_SLOW_RATE:60}
-        waitDurationInOpenState: ${CB_CART_OPEN_WAIT:15s}
-        failureRateThreshold: ${CB_CART_FAIL_RATE:50}
+        slowCallDurationThreshold: 2s
+        slowCallRateThreshold: 60
+        waitDurationInOpenState: 15s
+        failureRateThreshold: 50
       orderToPaypal:
         baseConfig: defaultCB
-        slowCallDurationThreshold: ${CB_PAYPAL_SLOW:20s}
-        waitDurationInOpenState: ${CB_PAYPAL_OPEN_WAIT:30s}
+        slowCallDurationThreshold: 20s      # PayPal đôi khi chậm hơn các service nội bộ
+        waitDurationInOpenState: 30s
 
   retry:
     configs:
       defaultRetry:
-        maxAttempts: ${RETRY_MAX_ATTEMPTS:3}
-        waitDuration: ${RETRY_WAIT:200ms}
-        enableExponentialBackoff: ${RETRY_BACKOFF:true}
-        exponentialBackoffMultiplier: ${RETRY_BACKOFF_MULTIPLIER:2}
+        maxAttempts: 3                         # 1 lần chính + 2 retry
+        waitDuration: 200ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        # Chỉ retry lỗi tạm thời (mạng/5xx/timeouts)
         retryExceptions:
           - java.io.IOException
           - org.springframework.web.reactive.function.client.WebClientRequestException
-          - org.springframework.web.reactive.function.client.WebClientResponseException$ServiceUnavailable
-          - org.springframework.web.reactive.function.client.WebClientResponseException$GatewayTimeout
+          - org.springframework.web.reactive.function.client.WebClientResponseException.ServiceUnavailable   # 503
+          - org.springframework.web.reactive.function.client.WebClientResponseException.GatewayTimeout      # 504
+        # Không retry các lỗi nghiệp vụ
         ignoreExceptions:
-          - org.springframework.web.reactive.function.client.WebClientResponseException$BadRequest
-          - org.springframework.web.reactive.function.client.WebClientResponseException$NotFound
-          - org.springframework.web.reactive.function.client.WebClientResponseException$Unauthorized
-          - org.springframework.web.reactive.function.client.WebClientResponseException$Forbidden
+          - org.springframework.web.reactive.function.client.WebClientResponseException.BadRequest          # 400
+          - org.springframework.web.reactive.function.client.WebClientResponseException.NotFound            # 404
+          - org.springframework.web.reactive.function.client.WebClientResponseException.Unauthorized        # 401
+          - org.springframework.web.reactive.function.client.WebClientResponseException.Forbidden           # 403
     instances:
       orderToAuth:
         baseConfig: defaultRetry
-        maxAttempts: ${RETRY_AUTH_ATTEMPTS:2}
-        waitDuration: ${RETRY_AUTH_WAIT:150ms}
+        maxAttempts: 2
+        waitDuration: 150ms
       orderToCart:
         baseConfig: defaultRetry
-        maxAttempts: ${RETRY_CART_ATTEMPTS:3}
-        waitDuration: ${RETRY_CART_WAIT:250ms}
+        maxAttempts: 3
+        waitDuration: 250ms
 
   timelimiter:
     instances:
       orderToAuth:
-        timeoutDuration: ${TL_AUTH:1s}
+        timeoutDuration: 1s                    # Địa chỉ phải phản hồi nhanh
       orderToCart:
-        timeoutDuration: ${TL_CART:2s}
+        timeoutDuration: 2s
 
   bulkhead:
     instances:
       orderToAuth:
-        maxConcurrentCalls: ${BH_AUTH_MAX:100}
-        maxWaitDuration: ${BH_AUTH_WAIT:0}
+        maxConcurrentCalls: 100
+        maxWaitDuration: 0                     # fail-fast, không xếp hàng
       orderToCart:
-        maxConcurrentCalls: ${BH_CART_MAX:50}
-        maxWaitDuration: ${BH_CART_WAIT:0}
+        maxConcurrentCalls: 50
+        maxWaitDuration: 0
       orderToPaypal:
-        maxConcurrentCalls: ${BH_PAYPAL_MAX:30}
-        maxWaitDuration: ${BH_PAYPAL_WAIT:0}
+        maxConcurrentCalls: 30
+        maxWaitDuration: 0
+
 
 paypal:
-  base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+  base-url: https://api-m.sandbox.paypal.com
   client-id: ${PAYPAL_CLIENT_ID}
   secret: ${PAYPAL_SECRET}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+

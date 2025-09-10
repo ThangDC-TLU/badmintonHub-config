@@ -1,68 +1,70 @@
-server:
-  port: ${NOTI_SERVER_PORT:8084}
-
 spring:
   datasource:
-    url: ${NOTI_DB_URL:jdbc:mysql://localhost:3306/noti_db}
-    username: ${NOTI_DB_USERNAME:root}
+    url: jdbc:mysql://localhost:3306/noti_db
+    username: root
     password: ${NOTI_DB_PASSWORD:}
-    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL:false}
+      ddl-auto: update
+
+  application:
+    name: NOTI-SERVICE
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    bootstrap-servers: localhost:9092
     consumer:
-      group-id: ${KAFKA_GROUP_ID:notification-group}
-      auto-offset-reset: ${KAFKA_OFFSET_RESET:earliest}
+      group-id: notification-group
+      auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: ${KAFKA_TRUSTED_PACKAGES:com.badmintonhub.notiservice.dto.event,com.badmintonhub.*}
-        spring.json.use.type.headers: ${KAFKA_USE_TYPE_HEADERS:true}
+        spring.json.trusted.packages: com.badmintonhub.notiservice.dto.event;
 
+  #config email with gmail
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
+    host: smtp.gmail.com
+    port: 587
     username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}   # <- lấy từ ENV (Gmail App Password hoặc Mailtrap)
+    password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
 
+server:
+  port: 8084
+
 management:
+  health:
+    circuitbreakers:
+      enabled: true
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health
   endpoint:
     health:
       show-details: always
-  health:
-    circuitbreakers.enabled: true
-
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka}
 
 resilience4j:
   circuitbreaker:
     instances:
-      notiClient:
+      NOTI-SERVICE:
         registerHealthIndicator: true
-        failureRateThreshold: ${CB_FAILURE_RATE:50}
-        minimumNumberOfCalls: ${CB_MIN_CALLS:5}
-        automaticTransitionFromOpenToHalfOpenEnabled: ${CB_AUTO_TRANSITION:true}
-        waitDurationInOpenState: ${CB_OPEN_WAIT:5s}
-        permittedNumberOfCallsInHalfOpenState: ${CB_HALF_OPEN_CALLS:3}
-        slidingWindowSize: ${CB_WINDOW_SIZE:10}
-        slidingWindowType: ${CB_WINDOW_TYPE:COUNT_BASED}
+        failureRateThreshold: 50
+        minimumNumberOfCalls: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowSize: 10
+        slidingWindowType: COUNT_BASED
   retry:
     instances:
-      notiClient:
-        maxAttempts: ${RETRY_MAX_ATTEMPTS:5}
-        waitDuration: ${RETRY_WAIT:2s}
+      NOTI-SERVICE:
+        maxAttempts: 5
+        waitDuration: 2s
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka

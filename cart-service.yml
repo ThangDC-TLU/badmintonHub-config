@@ -1,16 +1,44 @@
 server:
-  port: ${CART_SERVER_PORT:8082}
-
+  port: 8082
 spring:
+  application:
+    name: CART-SERVICE
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: localhost
+      port: 6379
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      cartToProduct:
+        slidingWindowType: COUNT_BASED  #Kiểu thông kê: số lần ội
+        slidingWindowSize: 20 #Đánh giá 20 request gần nhất
+        minimumNumberOfCalls: 10 #tính % lỗi/% chậm sau khi đã có tối thiểu 10 request.
+        failureRateThreshold: 50 #>=50% request bị lỗi → MỞ mạch (OPEN).
+        slowCallDurationThreshold: 2s #>2s ->chậm -> OPEN
+        slowCallRateThreshold: 60 #>60% request chậm -> OPEN
+        waitDurationInOpenState: 20s #Khi OPEN, chờ 20s rồi chuyển HALF_OPEN để “thử lại”
+        permittedNumberOfCallsInHalfOpenState: 3 # Ở HALF_OPEN, chỉ cho phép 3 rq thử. Thành công → CLOSED, thất bại/chậm → MỞ lại.
+        automaticTransitionFromOpenToHalfOpenEnabled: true #Tự động chuyển từ OPEN → HALF_OPEN sau khi hết thời gian chờ (không cần một request kích hoạt).
+  retry:
+    instances:
+      cartToProduct:
+        maxAttempts: 3 # Tổng số lần thử (1 lần đầu + 2 retry). Nên nhỏ để tránh “đốt” tài nguyên downstream.
+        waitDuration: 300ms # Thời gian chờ giữa các lần retry (backoff đơn giản).
+
+#  timelimiter:
+#    instances:
+#      cartToProduct:
+#        timeoutDuration: 3s # Cắt rq vượt 3s → ném TimeoutException (được CB tính là lỗi).
+
 
 eureka:
+  instance:
+    hostname: localhost
   client:
-    service-url:
-      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka}
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
 
 management:
   endpoints:
@@ -19,34 +47,11 @@ management:
         include: "*"
   tracing:
     sampling:
-      probability: ${OTEL_SAMPLING:1.0}
+      probability: 1.0
 
 logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
   level:
-    org.springframework.web: ${WEB_LOG_LEVEL:DEBUG}
+    org.springframework.web: DEBUG
 
-resilience4j:
-  circuitbreaker:
-    instances:
-      cartToProduct:
-        slidingWindowType: ${CB_WINDOW_TYPE:COUNT_BASED}
-        slidingWindowSize: ${CB_WINDOW_SIZE:20}
-        minimumNumberOfCalls: ${CB_MIN_CALLS:10}
-        failureRateThreshold: ${CB_FAILURE_RATE:50}
-        slowCallDurationThreshold: ${CB_SLOW_DURATION:2s}
-        slowCallRateThreshold: ${CB_SLOW_RATE:60}
-        waitDurationInOpenState: ${CB_OPEN_WAIT:20s}
-        permittedNumberOfCallsInHalfOpenState: ${CB_HALF_OPEN_CALLS:3}
-        automaticTransitionFromOpenToHalfOpenEnabled: ${CB_AUTO_TRANSITION:true}
-  retry:
-    instances:
-      cartToProduct:
-        maxAttempts: ${RETRY_MAX_ATTEMPTS:3}
-        waitDuration: ${RETRY_WAIT:300ms}
-# Nếu muốn dùng TimeLimiter, bật phần dưới và điều chỉnh bằng ENV:
-#  timelimiter:
-#    instances:
-#      cartToProduct:
-#        timeoutDuration: ${TL_TIMEOUT:3s}
