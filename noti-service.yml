@@ -8,9 +8,6 @@ spring:
     hibernate:
       ddl-auto: update
 
-  application:
-    name: NOTI-SERVICE
-
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
