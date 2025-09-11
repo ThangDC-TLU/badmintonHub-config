@@ -18,6 +18,13 @@ spring:
       authorizationserver:
         issuer: http://localhost:9000
 
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  cloud:
+    bus:
+      destination: springCloudBus
+
 logging:
   level:
     com.badmintonhub.authservice.config: TRACE
@@ -26,3 +33,9 @@ eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,refresh,busrefresh

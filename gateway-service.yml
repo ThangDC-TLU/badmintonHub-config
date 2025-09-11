@@ -7,8 +7,12 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:9000
+  kafka:
+    bootstrap-servers: localhost:9092
 
   cloud:
+    bus:
+      destination: springCloudBus
     gateway:
       httpclient:
         connect-timeout: 2000          # TCP connect 2s
@@ -114,14 +118,6 @@ resilience4j:
         timeoutDuration: 3s
         cancelRunningFuture: true
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-  health:
-    show-details: always
-
 eureka:
   client:
     service-url:
@@ -160,3 +156,12 @@ springdoc:
 auth:
   token-url: http://localhost:8085/oauth2/v1/token
   scopes: client-internal
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,refresh,busrefresh
+  endpoint:
+    health:
+      show-details: always
