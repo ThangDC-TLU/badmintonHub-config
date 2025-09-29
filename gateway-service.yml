@@ -150,7 +150,8 @@ logging:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
-    urls:                             # tập trung docs qua các endpoint /openapi/*
+    disable-swagger-default-url: true   # tránh trỏ mặc định /v3/api-docs
+    urls:
       - name: product-service
         url: /openapi/product
       - name: order-service
@@ -162,7 +163,7 @@ springdoc:
       - name: noti-service
         url: /openapi/noti
       - name: review-service
-      - url: /openapi/review
+        url: /openapi/review
     persistAuthorization: true        # giữ token giữa các tab
     oauth:
       client-id: client               # clientId đăng ký
