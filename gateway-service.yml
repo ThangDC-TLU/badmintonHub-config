@@ -7,6 +7,7 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:9000
+
   kafka:
     bootstrap-servers: localhost:9092
 
@@ -15,13 +16,14 @@ spring:
       destination: springCloudBus
     gateway:
       httpclient:
-        connect-timeout: 2000          # TCP connect 2s
-        response-timeout: 30s          # Tổng thời gian chờ HTTP client của Gateway (>= timelimiter lớn nhất)
+        connect-timeout: 2000
+        response-timeout: 30s
       routes:
+        # -------- API ROUTES --------
         - id: REVIEW-SERVICE
           uri: lb://REVIEW-SERVICE
           predicates:
-            - Path=/api/v1/reviews/**    # toàn bộ API review
+            - Path=/api/v1/reviews/**
           filters:
             - name: CircuitBreaker
               args:
@@ -38,7 +40,7 @@ spring:
               args:
                 name: productClient
                 fallbackUri: forward:/__fallback/product
-                statusCodes: 500,502,503,504     # chỉ fallback khi backend 5xx
+                statusCodes: 500,502,503,504
 
         - id: CART-SERVICE
           uri: lb://CART-SERVICE
@@ -60,7 +62,7 @@ spring:
               args:
                 name: orderClient
                 fallbackUri: forward:/__fallback/order
-                statusCodes: 500,502,503,504     # tránh coi 4xx nghiệp vụ là lỗi CB
+                statusCodes: 500,502,503,504
 
         - id: NOTI-SERVICE
           uri: lb://NOTI-SERVICE
@@ -84,6 +86,61 @@ spring:
                 fallbackUri: forward:/__fallback/auth
                 statusCodes: 500,502,503,504
 
+        # -------- OPENAPI (Swagger JSON) PROXY ROUTES --------
+        - id: PRODUCT-OPENAPI
+          uri: lb://PRODUCT-SERVICE
+          predicates:
+            - Path=/openapi/product
+          filters:
+            - name: SetPath
+              args:
+                template: /v3/api-docs
+
+        - id: ORDER-OPENAPI
+          uri: lb://ORDER-SERVICE
+          predicates:
+            - Path=/openapi/order
+          filters:
+            - name: SetPath
+              args:
+                template: /v3/api-docs
+
+        - id: AUTH-OPENAPI
+          uri: lb://AUTH-SERVICE
+          predicates:
+            - Path=/openapi/auth
+          filters:
+            - name: SetPath
+              args:
+                template: /v3/api-docs
+
+        - id: CART-OPENAPI
+          uri: lb://CART-SERVICE
+          predicates:
+            - Path=/openapi/cart
+          filters:
+            - name: SetPath
+              args:
+                template: /v3/api-docs
+
+        - id: NOTI-OPENAPI
+          uri: lb://NOTI-SERVICE
+          predicates:
+            - Path=/openapi/noti
+          filters:
+            - name: SetPath
+              args:
+                template: /v3/api-docs
+
+        - id: REVIEW-OPENAPI
+          uri: lb://REVIEW-SERVICE
+          predicates:
+            - Path=/openapi/review
+          filters:
+            - name: SetPath
+              args:
+                template: /v3/api-docs
+
 resilience4j:
   circuitbreaker:
     configs:
@@ -92,48 +149,31 @@ resilience4j:
         slidingWindowSize: 20
         minimumNumberOfCalls: 10
         failureRateThreshold: 50
-        slowCallDurationThreshold: 4s         # ngưỡng slow-call mặc định
+        slowCallDurationThreshold: 4s
         slowCallRateThreshold: 60
-        waitDurationInOpenState: 10s          # mở mạch 10s rồi thử lại
+        waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
         automaticTransitionFromOpenToHalfOpenEnabled: true
     instances:
-      productClient:
-        baseConfig: defaultProfile
-      cartClient:
-        baseConfig: defaultProfile
+      productClient: { baseConfig: defaultProfile }
+      cartClient:    { baseConfig: defaultProfile }
       orderClient:
         baseConfig: defaultProfile
-        slowCallDurationThreshold: 8s         # order có PayPal/auth/cart → nới ngưỡng
-      notiClient:
-        baseConfig: defaultProfile
+        slowCallDurationThreshold: 8s
+      notiClient:    { baseConfig: defaultProfile }
       authClient:
         baseConfig: defaultProfile
         slowCallDurationThreshold: 3s
-      reviewClient: 
-        baseConfig: defaultProfile
-
+      reviewClient:  { baseConfig: defaultProfile }
 
   timelimiter:
     instances:
-      productClient:
-        timeoutDuration: 3s                   # <= response-timeout và phù hợp SLA backend
-        cancelRunningFuture: true
-      cartClient:
-        timeoutDuration: 4s
-        cancelRunningFuture: true
-      orderClient:
-        timeoutDuration: 25s                  # lớn nhất; vẫn < response-timeout (30s)
-        cancelRunningFuture: true
-      notiClient:
-        timeoutDuration: 3s
-        cancelRunningFuture: true
-      authClient:
-        timeoutDuration: 3s
-        cancelRunningFuture: true
-      reviewClient:
-        timeoutDuration: 5s
-        cancelRunningFuture: true
+      productClient: { timeoutDuration: 3s,  cancelRunningFuture: true }
+      cartClient:    { timeoutDuration: 4s,  cancelRunningFuture: true }
+      orderClient:   { timeoutDuration: 25s, cancelRunningFuture: true }
+      notiClient:    { timeoutDuration: 3s,  cancelRunningFuture: true }
+      authClient:    { timeoutDuration: 3s,  cancelRunningFuture: true }
+      reviewClient:  { timeoutDuration: 5s,  cancelRunningFuture: true }
 
 eureka:
   client:
@@ -150,7 +190,7 @@ logging:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
-    disable-swagger-default-url: true   # tránh trỏ mặc định /v3/api-docs
+    disable-swagger-default-url: true
     urls:
       - name: product-service
         url: /openapi/product
@@ -164,11 +204,11 @@ springdoc:
         url: /openapi/noti
       - name: review-service
         url: /openapi/review
-    persistAuthorization: true        # giữ token giữa các tab
+    persistAuthorization: true
     oauth:
-      client-id: client               # clientId đăng ký
+      client-id: client
       client-secret: secret
-      use-pkce-with-authorization-code-grant: false   # dùng password grant
+      use-pkce-with-authorization-code-grant: false
       scope-separator: " "
   api-docs:
     enabled: true
