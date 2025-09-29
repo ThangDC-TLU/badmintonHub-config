@@ -18,6 +18,17 @@ spring:
         connect-timeout: 2000          # TCP connect 2s
         response-timeout: 30s          # Tổng thời gian chờ HTTP client của Gateway (>= timelimiter lớn nhất)
       routes:
+        - id: REVIEW-SERVICE
+          uri: lb://REVIEW-SERVICE
+          predicates:
+            - Path=/api/v1/reviews/**    # toàn bộ API review
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: reviewClient
+                fallbackUri: forward:/__fallback/review
+                statusCodes: 500,502,503,504
+
         - id: PRODUCT-SERVICE
           uri: lb://PRODUCT-SERVICE
           predicates:
@@ -99,6 +110,9 @@ resilience4j:
       authClient:
         baseConfig: defaultProfile
         slowCallDurationThreshold: 3s
+      reviewClient: 
+        baseConfig: defaultProfile
+
 
   timelimiter:
     instances:
@@ -116,6 +130,9 @@ resilience4j:
         cancelRunningFuture: true
       authClient:
         timeoutDuration: 3s
+        cancelRunningFuture: true
+      reviewClient:
+        timeoutDuration: 5s
         cancelRunningFuture: true
 
 eureka:
@@ -144,6 +161,8 @@ springdoc:
         url: /openapi/cart
       - name: noti-service
         url: /openapi/noti
+      - name: review-service
+      - url: /openapi/review
     persistAuthorization: true        # giữ token giữa các tab
     oauth:
       client-id: client               # clientId đăng ký
